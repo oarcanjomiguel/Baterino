@@ -1,99 +1,93 @@
-//Xylophone
-//Adapted for an ArduinoMega 
-//from Jenna deBoisblanc and Spiekenzie Labs initial code
-
+//  *****************************************************************************************************************
+//  *                                                                                                               *
+//  *                                     arduinodrum.wordpress.com                                                 *
+//  *                                                                                                               *
+//  *                                   Bateria Eletrônica com Arduino                                              *
+//  *                                         Diego Siena - 2014                                                    *
+//  *                                                                                                               *
+//  *****************************************************************************************************************
+ 
 //*******************************************************************************************************************
-// User settable variables
+// Variáveis de Definição do Usuário.                      
 //*******************************************************************************************************************
-
-int pinRead;
-char pinAssignments[16] ={
-  'A0','A1','A2','A3','A4','A5','A6','A7','A8','A9','A10','A11'};
-byte PadNote[16] = {
-  57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72};         // MIDI notes from 0 to 127 (Mid C = 60)
-int PadCutOff[16] = 
-{
-  400,400,200,800,400,400,400,400,400,400,400,400,400,400,400,400};           // Minimum Analog value to cause a drum hit
-int MaxPlayTime[16] = {
-  90,90,90,90,90,90,90,90,90,90,90,90,90,90,90,90};               // Cycles before a 2nd hit is allowed
-#define  midichannel 1;                              // MIDI channel from 0 to 15 (+1 in "real world")
-boolean VelocityFlag  = true;                           // Velocity ON (true) or OFF (false)
-
+ 
+unsigned char PadNote[6] = {52,16,66,63,40,65};         // Notas MIDI - 0 a 127
+ 
+int PadCutOff[6] = {600,600,600,600,600,600};           // Valor Mínimo do Sensor para causar o som
+ 
+int MaxPlayTime[6] = {90,90,90,90,90,90};               // Ciclos a passar antes da Segunda Batida ser acionada.
+ 
+#define  midichannel    0;                              // Canal Midi
+ 
+boolean VelocityFlag  = true;                           // Se o som será de acordo com a intensidade da Batida.
+ 
+ 
+ 
+ 
+ 
 //*******************************************************************************************************************
-// Internal Use Variables
+// Variáveis de uso Interno                   
 //*******************************************************************************************************************
-boolean activePad[16] = {
-  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};                   // Array of flags of pad currently playing
-int PinPlayTime[16] = {
-  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};                     // Counter since pad started to play
-byte status1;
-
-int pin = 0;     
+ 
+boolean activePad[6] = {0,0,0,0,0,0};                   // Salva se os pads estao ativos ou nao.
+int PinPlayTime[6] = {0,0,0,0,0,0};                     // Contador dos ciclos desde que o pad foi acionado.
+ 
+unsigned char status;
+ 
+int pin = 0;    
 int hitavg = 0;
+ 
 //*******************************************************************************************************************
-// Setup
+// Setup                       
 //*******************************************************************************************************************
-void setup() 
+ 
+void setup()
 {
-  Serial.begin(57600);                                  // SET HAIRLESS TO THE SAME BAUD RATE IN THE SETTINGS
-
+  Serial.begin(57600);                              
 }
+ 
 //*******************************************************************************************************************
-// Main Program
+// Main Program                
 //*******************************************************************************************************************
-void loop() 
+ 
+void loop()
 {
-  for(int pin=0; pin < 16; pin++)                          //
+  for(int pin=0; pin < 6; pin++) // Percorre os Pinos Analógicos
   {
-    //int pin = 3;
-    //   for (pinRead=0; pinRead < 16, pin++){
-    hitavg = analogRead(pinAssignments[pin]);  
-    //Serial.println(hitavg);   
-    // read the input pin
-
-    if((hitavg > PadCutOff[pin]))
+    hitavg = analogRead(pin);  // Lê o Valor do Sensor                            
+ 
+    if((hitavg > PadCutOff[pin]))  // Verifica se o valor pego pelo sensor é maior que o Valor minimo para causar o Som
     {
-      if((activePad[pin] == false))
+      if((activePad[pin] == false))  // Verifica se o Pad já está sendo executado.
       {
-        if(VelocityFlag == true)
+        if(VelocityFlag == true)  // Verifica se o som será de acordo com a Intensidade da Batida, para gerar o Sinal Midi.
         {
-          //          hitavg = 127 / ((1023 - PadCutOff[pin]) / (hitavg - PadCutOff[pin]));    // With full range (Too sensitive ?)
+//          hitavg = 127 / ((1023 - PadCutOff[pin]) / (hitavg - PadCutOff[pin]));    // With full range (Too sensitive ?)
           hitavg = (hitavg / 8) -1 ;                                                 // Upper range
         }
         else
         {
           hitavg = 127;
         }
-        MIDI_TX(144,PadNote[pin],hitavg); //note on
-
-        PinPlayTime[pin] = 0;
-        activePad[pin] = true;
+ 
+        MIDI_TX(144,PadNote[pin],hitavg); // Joga o SInal MIDI
+        PinPlayTime[pin] = 0;  //Seta o Ciclo para '0'
+        activePad[pin] = true;  // Altera o Pad para Ativo.
       }
       else
       {
-        PinPlayTime[pin] = PinPlayTime[pin] + 1;
+        PinPlayTime[pin] = PinPlayTime[pin] + 1; // Caso o Pad ja esteja ativo, incrementa 1 Ciclo.
       }
     }
-    else if((activePad[pin] == true))
+    else if((activePad[pin] == true)) // ESTA SEGUNDA PARTE É RESPONSÁVEL APENAS POR INCREMENTAR OS CICLOS E ATIVAR/DESATIVAR OS PADS.
     {
       PinPlayTime[pin] = PinPlayTime[pin] + 1;
+     
       if(PinPlayTime[pin] > MaxPlayTime[pin])
       {
         activePad[pin] = false;
-        MIDI_TX(144,PadNote[pin],0); 
+        MIDI_TX(128,PadNote[pin],127);
       }
     }
-  } 
-}
-
-//*******************************************************************************************************************
-// Transmit MIDI Message
-//*******************************************************************************************************************
-void MIDI_TX(byte MESSAGE, byte PITCH, byte VELOCITY) 
-{
-  status1 = MESSAGE + midichannel;
-  Serial.write(status1);
-  Serial.write(PITCH);
-  Serial.write(VELOCITY);
-
+  }
 }
