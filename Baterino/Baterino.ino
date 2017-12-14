@@ -10,18 +10,22 @@
 //*******************************************************************************************************************
 // Variáveis de Definição do Usuário.                      
 //*******************************************************************************************************************
+
+#define PADCUTOFF 400
+#define MAXPLAYTIME 30
+#define MINCHAN 0
+#define MAXCHAN 3
+unsigned char PadNote[6] = {36,55,40,63,40,65};         // Notas MIDI - 0 a 127
  
-unsigned char PadNote[6] = {52,16,66,63,40,65};         // Notas MIDI - 0 a 127
+int PadCutOff[6] = {PADCUTOFF,PADCUTOFF,PADCUTOFF,PADCUTOFF,PADCUTOFF,PADCUTOFF};           // Valor Mínimo do Sensor para causar o som
  
-int PadCutOff[6] = {600,600,600,600,600,600};           // Valor Mínimo do Sensor para causar o som
- 
-int MaxPlayTime[6] = {90,90,90,90,90,90};               // Ciclos a passar antes da Segunda Batida ser acionada.
+int MaxPlayTime[6] = {MAXPLAYTIME,MAXPLAYTIME,MAXPLAYTIME,MAXPLAYTIME,MAXPLAYTIME,MAXPLAYTIME};               // Ciclos a passar antes da Segunda Batida ser acionada.
  
 #define  midichannel    0;                              // Canal Midi
  
-boolean VelocityFlag  = true;                           // Se o som será de acordo com a intensidade da Batida.
+boolean VelocityFlag  = false;                           // Se o som será de acordo com a intensidade da Batida.
  
- 
+unsigned char nota = 0; 
  
  
  
@@ -36,7 +40,8 @@ unsigned char status;
  
 int pin = 0;    
 int hitavg = 0;
- 
+unsigned long seg=0;
+unsigned long segAnterior = 0;
 //*******************************************************************************************************************
 // Setup                       
 //*******************************************************************************************************************
@@ -52,7 +57,7 @@ void setup()
  
 void loop()
 {
-  for(int pin=0; pin < 6; pin++) // Percorre os Pinos Analógicos
+  for(int pin=MINCHAN; pin < MAXCHAN; pin++) // Percorre os Pinos Analógicos
   {
     hitavg = analogRead(pin);  // Lê o Valor do Sensor                            
  
@@ -71,6 +76,7 @@ void loop()
         }
  
         MIDI_TX(144,PadNote[pin],hitavg); // Joga o SInal MIDI
+        //MIDI_TX(144,nota,hitavg); // Joga o SInal MIDI
         PinPlayTime[pin] = 0;  //Seta o Ciclo para '0'
         activePad[pin] = true;  // Altera o Pad para Ativo.
       }
@@ -87,7 +93,32 @@ void loop()
       {
         activePad[pin] = false;
         MIDI_TX(128,PadNote[pin],127);
+        //MIDI_TX(128,nota,127);
       }
     }
   }
+  
+    seg = millis()/300;
+    if(seg!=segAnterior)
+{
+  nota++;
+  segAnterior = seg;
+  if(nota==127) nota = 0;
+  //MIDI_TX(144,nota,127); // Joga o SInal MIDI
+}
+   // nota = ((seg)*127)/60;
+    
+ 
+}
+
+//*******************************************************************************************************************
+// Transmit MIDI Message
+//*******************************************************************************************************************
+void MIDI_TX(byte MESSAGE, byte PITCH, byte VELOCITY) 
+{
+  status = MESSAGE + midichannel;
+  Serial.write(status);
+  Serial.write(PITCH);
+  Serial.write(VELOCITY);
+
 }
